@@ -295,10 +295,48 @@ const sendWelcomeEmail = async (email, userName) => {
   });
 };
 
+// ── Password Reset Email ──
+const sendPasswordResetEmail = async (email, token) => {
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  await sendEmail({
+    to: email,
+    subject: 'Reset your Auction Arena password',
+    html: `
+      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #3B82F6, #6366F1); padding: 32px; text-align: center;">
+          <h1 style="color: #fff; margin: 0; font-size: 24px;">Password Reset</h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">Auction Arena</p>
+        </div>
+        <div style="padding: 32px;">
+          <h2 style="color: #0F172A; margin-top: 0;">Reset Your Password 🔐</h2>
+          <p style="color: #475569; font-size: 15px; line-height: 1.7;">
+            We received a request to reset the password for your Auction Arena account. Click the button below to set a new password:
+          </p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${resetUrl}" style="display: inline-block; padding: 14px 36px; background: #3B82F6; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+              Reset Password
+            </a>
+          </div>
+          <p style="color: #475569; font-size: 13px; line-height: 1.6;">
+            This link will expire in <strong>1 hour</strong>. If you didn't request a password reset, you can safely ignore this email.
+          </p>
+          <p style="color: #94A3B8; font-size: 12px; margin-top: 20px;">If the button doesn't work, copy this link: ${resetUrl}</p>
+          <div style="border-top: 1px solid #E2E8F0; margin-top: 24px; padding-top: 20px; text-align: center;">
+            <p style="color: #94A3B8; font-size: 12px; margin: 0;">
+              © ${new Date().getFullYear()} Auction Arena. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendVerificationEmail,
   sendWelcomeEmail,
+  sendPasswordResetEmail,
   sendAuctionWonEmailToBuyer,
   sendAuctionSoldEmailToSeller,
   sendAuctionNoBidsEmail,

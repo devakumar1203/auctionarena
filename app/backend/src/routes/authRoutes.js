@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { register, login, verifyEmail, getMe } = require('../controllers/authController');
+const { register, login, verifyEmail, getMe, forgotPassword, resetPassword } = require('../controllers/authController');
 const { authenticate } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
 
@@ -47,7 +47,37 @@ router.post(
   login
 );
 
-router.post('/verify-email', verifyEmail);
+// GET — clickable link from verification email
+router.get('/verify-email', verifyEmail);
+
+// Forgot password — send reset link
+router.post(
+  '/forgot-password',
+  [
+    body('email').isEmail().withMessage('Valid email is required'),
+  ],
+  validate,
+  forgotPassword
+);
+
+// Reset password — set new password with token
+router.post(
+  '/reset-password',
+  [
+    body('token').notEmpty().withMessage('Reset token is required'),
+    body('password')
+      .isStrongPassword({
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 1,
+      })
+      .withMessage('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character'),
+  ],
+  validate,
+  resetPassword
+);
 
 router.get('/me', authenticate, getMe);
 

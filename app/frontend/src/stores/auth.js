@@ -35,11 +35,8 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true; error.value = null
     try {
       const { data } = await api.post('/auth/register', formData)
-      token.value = data.token; user.value = data.user
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
-      connectSocket(data.token)
-      return data.user
+      // Don't log the user in — they need to verify their email first
+      return data
     } catch (e) {
       if (e.response?.data?.errors) {
         error.value = e.response.data.errors.map(err => err.message).join(', ')

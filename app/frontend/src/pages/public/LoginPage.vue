@@ -14,6 +14,9 @@
         <div class="form-group">
           <label>Password</label>
           <input v-model="password" type="password" placeholder="Enter your password" required />
+          <div class="forgot-link">
+            <router-link to="/forgot-password">Forgot password?</router-link>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary btn-block" :disabled="auth.loading" style="padding:12px">
           {{ auth.loading ? 'Signing in...' : 'Sign in' }}
@@ -62,4 +65,7 @@ const handleLogin = async () => {
 }
 .auth-footer a { color: var(--text-primary); font-weight: 500; }
 .auth-footer a:hover { text-decoration: underline; }
+.forgot-link { text-align: right; margin-top: 6px; }
+.forgot-link a { color: var(--primary); font-size: 0.8rem; font-weight: 500; }
+.forgot-link a:hover { text-decoration: underline; }
 </style>

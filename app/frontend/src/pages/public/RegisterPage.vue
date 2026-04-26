@@ -121,8 +121,9 @@ const validateForm = () => {
 const handleRegister = async () => {
   if (!validateForm()) return
   try {
-    const user = await auth.register(form)
-    router.push(user.role === 'ADMIN' ? '/admin' : '/dashboard')
+    await auth.register(form)
+    // Redirect to check-email page — user must verify before logging in
+    router.push('/check-email')
   } catch (e) {
     if (e.response?.data?.errors) {
       e.response.data.errors.forEach(err => {

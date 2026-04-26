@@ -6,6 +6,10 @@ const routes = [
   { path: '/', name: 'Home', component: () => import('../pages/public/HomePage.vue') },
   { path: '/login', name: 'Login', component: () => import('../pages/public/LoginPage.vue'), meta: { guest: true } },
   { path: '/register', name: 'Register', component: () => import('../pages/public/RegisterPage.vue'), meta: { guest: true } },
+  { path: '/check-email', name: 'CheckEmail', component: () => import('../pages/public/CheckEmailPage.vue'), meta: { guest: true } },
+  { path: '/verify-email', name: 'VerifyEmail', component: () => import('../pages/public/VerifyEmailPage.vue'), meta: { guest: true } },
+  { path: '/forgot-password', name: 'ForgotPassword', component: () => import('../pages/public/ForgotPasswordPage.vue'), meta: { guest: true } },
+  { path: '/reset-password', name: 'ResetPassword', component: () => import('../pages/public/ResetPasswordPage.vue'), meta: { guest: true } },
   { path: '/auction/:id', name: 'AuctionRoom', component: () => import('../pages/user/AuctionRoom.vue') },
 
   // User routes
