@@ -85,7 +85,14 @@
             <h3 class="mb-md">Rate Seller</h3>
             <div class="form-group"><label>Product Quality (1-5)</label><input v-model.number="rating.productQuality" type="number" min="1" max="5" /></div>
             <div class="form-group"><label>Description Accuracy (1-5)</label><input v-model.number="rating.descriptionAccuracy" type="number" min="1" max="5" /></div>
-            <button class="btn btn-primary btn-sm" @click="submitRating">Submit Rating</button>
+            <button class="btn btn-primary btn-sm" @click="submitRating('seller')">Submit Rating</button>
+          </div>
+
+          <div v-if="auction.status==='COMPLETED' && auth.isAuthenticated && auction.sellerId===auth.user?.id && auction.highestBuyerId" class="card mt-md">
+            <h3 class="mb-md">Rate Buyer</h3>
+            <div class="form-group"><label>Communication (1-5)</label><input v-model.number="buyerRating.communication" type="number" min="1" max="5" /></div>
+            <div class="form-group"><label>Reliability (1-5)</label><input v-model.number="buyerRating.reliability" type="number" min="1" max="5" /></div>
+            <button class="btn btn-primary btn-sm" @click="submitRating('buyer')">Submit Rating</button>
           </div>
         </div>
       </div>
@@ -111,6 +118,7 @@ const bidError = ref('')
 const timeLeft = ref('')
 const timeLeftColor = ref('')
 const rating = reactive({ productQuality: 5, descriptionAccuracy: 5 })
+const buyerRating = reactive({ communication: 5, reliability: 5 })
 const selectedImage = ref('')
 let timer = null
 
@@ -151,9 +159,18 @@ const withdrawBid = async () => {
   } catch (e) { alert(e.response?.data?.message || 'Failed') }
 }
 
-const submitRating = async () => {
+const submitRating = async (type) => {
   try {
-    await api.post(`/users/${auction.value.sellerId}/rate`, { ...rating, auctionId: auction.value.id })
+    if (type === 'seller') {
+      await api.post(`/users/${auction.value.sellerId}/rate`, { ...rating, auctionId: auction.value.id })
+    } else {
+      // Seller rates buyer: map communication→productQuality, reliability→descriptionAccuracy
+      await api.post(`/users/${auction.value.highestBuyerId}/rate`, {
+        productQuality: buyerRating.communication,
+        descriptionAccuracy: buyerRating.reliability,
+        auctionId: auction.value.id,
+      })
+    }
     alert('Rating submitted!')
   } catch (e) { alert(e.response?.data?.message || 'Failed') }
 }
@@ -215,8 +232,9 @@ onUnmounted(() => {
   width: 100%; height: 320px; overflow: hidden;
   background: var(--bg-surface); border-radius: var(--radius);
   border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
 }
-.gallery-main img { width: 100%; height: 100%; object-fit: cover; }
+.gallery-main img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
 .gallery-thumbs { display: flex; gap: 8px; margin-top: 8px; }
 .gallery-thumb {
   width: 64px; height: 64px; border-radius: var(--radius-sm);
