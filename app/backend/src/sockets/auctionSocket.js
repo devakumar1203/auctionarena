@@ -31,6 +31,9 @@ const setupSocketHandlers = (io) => {
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.user.name} (${socket.user.id})`);
 
+    // Join a personal room for targeted notifications
+    socket.join(`user:${socket.user.id}`);
+
     // Join an auction room
     socket.on('join_auction', async (auctionId) => {
       try {

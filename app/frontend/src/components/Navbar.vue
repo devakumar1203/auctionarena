@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
@@ -79,8 +79,21 @@ const handleLogout = () => {
   router.push('/login')
 }
 
+const initNotifications = () => {
+  notifStore.fetchNotifications()
+  notifStore.setupRealtimeListener()
+}
+
 onMounted(() => {
-  if (auth.isAuthenticated) notifStore.fetchNotifications()
+  if (auth.isAuthenticated) initNotifications()
+})
+
+// Also set up listener when user logs in (Navbar stays mounted across navigation)
+watch(() => auth.isAuthenticated, (isAuth) => {
+  if (isAuth) {
+    // Small delay to ensure socket is connected after login
+    setTimeout(initNotifications, 500)
+  }
 })
 </script>
 

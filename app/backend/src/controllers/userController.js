@@ -260,6 +260,62 @@ const markNotificationRead = async (req, res) => {
   }
 };
 
+// GET /api/users/category-subscriptions
+const getCategorySubscriptions = async (req, res) => {
+  try {
+    const subscriptions = await prisma.categorySubscription.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ subscriptions, categories: subscriptions.map(s => s.category) });
+  } catch (error) {
+    console.error('Get category subscriptions error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// POST /api/users/category-subscriptions
+const subscribeToCategory = async (req, res) => {
+  try {
+    const { category } = req.body;
+    if (!category || !category.trim()) {
+      return res.status(400).json({ message: 'Category is required.' });
+    }
+
+    const subscription = await prisma.categorySubscription.create({
+      data: {
+        userId: req.user.id,
+        category: category.trim(),
+      },
+    });
+
+    res.status(201).json({ message: `Subscribed to "${category}" notifications.`, subscription });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ message: 'Already subscribed to this category.' });
+    }
+    console.error('Subscribe to category error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// DELETE /api/users/category-subscriptions/:category
+const unsubscribeFromCategory = async (req, res) => {
+  try {
+    const category = decodeURIComponent(req.params.category);
+    await prisma.categorySubscription.deleteMany({
+      where: {
+        userId: req.user.id,
+        category,
+      },
+    });
+    res.json({ message: `Unsubscribed from "${category}" notifications.` });
+  } catch (error) {
+    console.error('Unsubscribe from category error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getUserProfile,
   updateProfile,
@@ -269,4 +325,7 @@ module.exports = {
   getComments,
   getNotifications,
   markNotificationRead,
+  getCategorySubscriptions,
+  subscribeToCategory,
+  unsubscribeFromCategory,
 };
