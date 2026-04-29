@@ -14,6 +14,7 @@ const adminRoutes = require('./routes/adminRoutes');
 // Import socket & cron handlers
 const setupSocketHandlers = require('./sockets/auctionSocket');
 const setupCronJobs = require('./services/cronService');
+const { setIO } = require('./utils/socketInstance');
 
 const app = express();
 const server = http.createServer(app);
@@ -59,6 +60,7 @@ app.use((err, req, res, next) => {
 });
 
 // Setup Socket.io handlers
+setIO(io);
 setupSocketHandlers(io);
 
 // Setup Cron Jobs (pass io for real-time notifications)

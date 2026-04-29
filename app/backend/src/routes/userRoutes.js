@@ -9,6 +9,9 @@ const {
   getComments,
   getNotifications,
   markNotificationRead,
+  getCategorySubscriptions,
+  subscribeToCategory,
+  unsubscribeFromCategory,
 } = require('../controllers/userController');
 const { authenticate } = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
@@ -17,6 +20,11 @@ const router = express.Router();
 
 router.get('/notifications', authenticate, getNotifications);
 router.put('/notifications/:id/read', authenticate, markNotificationRead);
+
+// Category subscription routes
+router.get('/category-subscriptions', authenticate, getCategorySubscriptions);
+router.post('/category-subscriptions', authenticate, subscribeToCategory);
+router.delete('/category-subscriptions/:category', authenticate, unsubscribeFromCategory);
 
 router.get('/profile/:id', getUserProfile);
 
@@ -63,3 +71,4 @@ router.post(
 router.get('/:id/comments', getComments);
 
 module.exports = router;
+

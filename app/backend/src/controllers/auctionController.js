@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { getIO } = require('../utils/socketInstance');
 const {
   sendAuctionWonEmailToBuyer,
   sendAuctionSoldEmailToSeller,
@@ -46,6 +47,47 @@ const createAuction = async (req, res) => {
         product: true,
       },
     });
+
+    // --- Notify users subscribed to this product's category ---
+    try {
+      const subscribers = await prisma.categorySubscription.findMany({
+        where: {
+          category: product.category,
+          userId: { not: req.user.id }, // exclude the seller
+        },
+        select: { userId: true },
+      });
+
+      if (subscribers.length > 0) {
+        const notificationData = subscribers.map(sub => ({
+          userId: sub.userId,
+          title: `New auction in "${product.category}"`,
+          message: `"${product.name}" is now up for bidding at ₹${product.basePrice.toLocaleString('en-IN')}. Don't miss out!`,
+          type: 'new_auction',
+        }));
+
+        await prisma.notification.createMany({ data: notificationData });
+
+        // Push real-time notifications via socket
+        const io = getIO();
+        if (io) {
+          subscribers.forEach(sub => {
+            io.to(`user:${sub.userId}`).emit('new_notification', {
+              title: `New auction in "${product.category}"`,
+              message: `"${product.name}" is now up for bidding at ₹${product.basePrice.toLocaleString('en-IN')}. Don't miss out!`,
+              type: 'new_auction',
+              auctionId: auction.id,
+              createdAt: new Date().toISOString(),
+            });
+          });
+        }
+
+        console.log(`📢 Notified ${subscribers.length} subscriber(s) for category "${product.category}"`);
+      }
+    } catch (notifError) {
+      // Don't fail the auction creation if notifications fail
+      console.error('Category notification error:', notifError);
+    }
 
     res.status(201).json({ message: 'Auction created successfully.', auction });
   } catch (error) {

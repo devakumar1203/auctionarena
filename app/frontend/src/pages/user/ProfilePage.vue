@@ -79,18 +79,38 @@
           </div>
         </div>
 
-        <!-- Actions Card -->
+        <!-- Actions / Category Alerts Card -->
         <div class="card">
-          <h3 class="card-section-title">{{ isOwnProfile ? 'Favourite Categories' : 'Actions' }}</h3>
+          <template v-if="isOwnProfile">
+            <h3 class="card-section-title">🔔 Category Alerts</h3>
+            <p class="sub-desc">Get notified when new auctions appear in your chosen categories.</p>
 
-          <div v-if="isOwnProfile && profile.favoriteCategories?.length" class="tag-list">
-            <span v-for="cat in profile.favoriteCategories" :key="cat" class="category-tag">{{ cat }}</span>
-          </div>
-          <p v-else-if="isOwnProfile" class="text-muted" style="font-size:0.85rem">No favourite categories set yet.</p>
+            <div v-if="catsLoading" class="text-muted" style="font-size:0.85rem">Loading categories...</div>
+            <div v-else class="cat-sub-list">
+              <div v-for="cat in allCategories" :key="cat" class="cat-sub-item">
+                <span class="cat-sub-name">{{ cat }}</span>
+                <button
+                  class="cat-sub-toggle"
+                  :class="{ active: isSubscribed(cat), toggling: togglingCat === cat }"
+                  @click="toggleSubscription(cat)"
+                  :disabled="togglingCat === cat"
+                >
+                  <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                  </span>
+                  <span class="toggle-label">{{ isSubscribed(cat) ? 'On' : 'Off' }}</span>
+                </button>
+              </div>
+              <div v-if="!allCategories.length" class="text-muted" style="font-size:0.85rem">No categories available yet.</div>
+            </div>
+          </template>
 
-          <div v-if="!isOwnProfile" class="flex gap-sm mt-md">
-            <button class="btn btn-danger btn-sm" @click="showFlagModal = true">🚩 Flag User</button>
-          </div>
+          <template v-else>
+            <h3 class="card-section-title">Actions</h3>
+            <div class="flex gap-sm mt-md">
+              <button class="btn btn-danger btn-sm" @click="showFlagModal = true">🚩 Flag User</button>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -130,10 +150,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { useNotificationStore } from '../../stores/notification'
 import api from '../../services/api'
 
 const route = useRoute()
 const auth = useAuthStore()
+const notifStore = useNotificationStore()
 const profile = ref(null)
 const comments = ref([])
 const loading = ref(true)
@@ -141,12 +163,32 @@ const showFlagModal = ref(false)
 const flagReason = ref('')
 const newComment = ref('')
 
+const allCategories = ref([])
+const catsLoading = ref(true)
+const togglingCat = ref(null)
+
 const userId = () => route.params.id || auth.user?.id
 const isOwnProfile = computed(() => auth.isAuthenticated && auth.user?.id === profile.value?.id)
 
 const maskEmail = (e) => { if (!e) return ''; const [u, d] = e.split('@'); return u[0] + '***@' + d }
 const maskPhone = (p) => { if (!p) return ''; return p.slice(0, 3) + '****' + p.slice(-3) }
 const maskPan = (p) => { if (!p) return ''; return p.slice(0, 3) + '****' + p.slice(-3) }
+
+const isSubscribed = (cat) => notifStore.subscribedCategories.includes(cat)
+
+const toggleSubscription = async (cat) => {
+  togglingCat.value = cat
+  try {
+    if (isSubscribed(cat)) {
+      await notifStore.unsubscribeFromCategory(cat)
+    } else {
+      await notifStore.subscribeToCategory(cat)
+    }
+  } catch (e) {
+    alert(e.response?.data?.message || 'Failed to update subscription')
+  }
+  togglingCat.value = null
+}
 
 onMounted(async () => {
   try {
@@ -158,6 +200,18 @@ onMounted(async () => {
     comments.value = c.data.comments
   } catch (e) { console.error(e) }
   loading.value = false
+
+  // Load categories and subscriptions for own profile
+  if (auth.isAuthenticated && isOwnProfile.value) {
+    try {
+      const [catsRes] = await Promise.all([
+        api.get('/products/categories'),
+        notifStore.fetchSubscriptions(),
+      ])
+      allCategories.value = catsRes.data.categories || []
+    } catch (e) { console.error(e) }
+    catsLoading.value = false
+  }
 })
 
 const submitFlag = async () => {
@@ -202,6 +256,8 @@ const submitComment = async () => {
 
 .card-section-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; }
 
+.sub-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px; margin-top: -8px; }
+
 .detail-list { display: flex; flex-direction: column; gap: 0; }
 .detail-item {
   display: flex; justify-content: space-between; align-items: center;
@@ -217,6 +273,36 @@ const submitComment = async () => {
   color: var(--text-secondary); padding: 4px 12px; border-radius: 100px;
   font-size: 0.78rem; font-weight: 500;
 }
+
+/* Category Subscription Toggle List */
+.cat-sub-list { display: flex; flex-direction: column; gap: 0; }
+.cat-sub-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.cat-sub-item:last-child { border-bottom: none; }
+.cat-sub-name { font-size: 0.85rem; font-weight: 500; color: var(--text-primary); }
+
+.cat-sub-toggle {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none; cursor: pointer; padding: 4px;
+}
+.cat-sub-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.toggle-track {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: var(--border); position: relative;
+  transition: background 0.25s ease;
+}
+.cat-sub-toggle.active .toggle-track { background: var(--primary); }
+.toggle-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; transition: transform 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.cat-sub-toggle.active .toggle-thumb { transform: translateX(16px); }
+.toggle-label { font-size: 0.75rem; font-weight: 500; color: var(--text-muted); min-width: 22px; }
+.cat-sub-toggle.active .toggle-label { color: var(--primary); }
 
 .comment-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .modal-overlay {

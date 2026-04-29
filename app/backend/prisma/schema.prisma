@@ -38,6 +38,7 @@ model User {
   flags           Flag[]        @relation("FlagAuthor")
   flagsReceived   Flag[]        @relation("FlagTarget")
   notifications   Notification[]
+  categorySubscriptions CategorySubscription[]
 }
 
 enum Role {
@@ -151,7 +152,17 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
   title     String
   message   String
-  type      String   // 'bid_update', 'auction_won', 'auction_ended', 'flagged', 'outbid'
+  type      String   // 'bid_update', 'auction_won', 'auction_ended', 'flagged', 'outbid', 'new_auction'
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model CategorySubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  category  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, category])
 }

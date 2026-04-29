@@ -9,7 +9,7 @@ const routes = [
   { path: '/check-email', name: 'CheckEmail', component: () => import('../pages/public/CheckEmailPage.vue'), meta: { guest: true } },
   { path: '/verify-email', name: 'VerifyEmail', component: () => import('../pages/public/VerifyEmailPage.vue'), meta: { guest: true } },
   { path: '/forgot-password', name: 'ForgotPassword', component: () => import('../pages/public/ForgotPasswordPage.vue'), meta: { guest: true } },
-  { path: '/reset-password', name: 'ResetPassword', component: () => import('../pages/public/ResetPasswordPage.vue'), meta: { guest: true } },
+  { path: '/reset-password', name: 'ResetPassword', component: () => import('../pages/public/ResetPasswordPage.vue') },
   { path: '/auction/:id', name: 'AuctionRoom', component: () => import('../pages/user/AuctionRoom.vue') },
 
   // User routes
