@@ -3,7 +3,6 @@ const { body } = require('express-validator');
 const {
   getUserProfile,
   updateProfile,
-  flagUser,
   addComment,
   getComments,
   getUserRatings,
@@ -36,13 +35,7 @@ router.put(
   updateProfile
 );
 
-router.post(
-  '/:id/flag',
-  authenticate,
-  [body('reason').trim().notEmpty().withMessage('Reason is required')],
-  validate,
-  flagUser
-);
+
 
 router.post(
   '/:id/comments',

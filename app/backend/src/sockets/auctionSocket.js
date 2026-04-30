@@ -178,6 +178,14 @@ const setupSocketHandlers = (io) => {
               type: 'outbid',
             },
           });
+
+          // Push real-time notification via socket
+          io.to(`user:${previousHighestBuyerId}`).emit('new_notification', {
+            title: 'You have been outbid!',
+            message: `Someone placed a higher bid of ₹${bidAmount} on "${auction.product.name}".`,
+            type: 'outbid',
+            createdAt: new Date().toISOString(),
+          });
         }
 
         console.log(`Bid placed: ₹${bidAmount} by ${socket.user.name} on auction ${auctionId}`);

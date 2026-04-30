@@ -3,10 +3,23 @@ const prisma = require('../utils/prisma');
 // GET /api/categories
 const getAllCategories = async (req, res) => {
   try {
-    const categories = await prisma.category.findMany({
+    // Get admin-managed categories
+    const adminCategories = await prisma.category.findMany({
       orderBy: { name: 'asc' },
     });
-    res.json({ categories: categories.map(c => c.name), fullCategories: categories });
+    const adminNames = adminCategories.map(c => c.name);
+
+    // Get distinct categories from existing products
+    const productCategories = await prisma.product.findMany({
+      select: { category: true },
+      distinct: ['category'],
+    });
+    const productNames = productCategories.map(c => c.category);
+
+    // Merge and deduplicate
+    const allNames = [...new Set([...adminNames, ...productNames])].sort();
+
+    res.json({ categories: allNames, fullCategories: adminCategories });
   } catch (error) {
     console.error('Get categories error:', error);
     res.status(500).json({ message: 'Internal server error.' });

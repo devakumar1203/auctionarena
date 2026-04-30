@@ -27,7 +27,6 @@
           <span class="text-muted">Best Price</span>
           <span style="font-weight:700;color:var(--success)">₹{{ Number(a.bestPrice).toLocaleString('en-IN') }}</span>
         </div>
-        <button v-if="a.status==='ACTIVE' && a.type==='OPEN'" class="btn btn-danger btn-sm btn-block mt-md" @click.stop="endAuction(a.id)">End Auction</button>
       </div>
     </div>
   </div>
@@ -52,13 +51,8 @@ const fetchData = async () => {
   loading.value = false
 }
 
-const endAuction = async (id) => {
-  if (!confirm('Are you sure you want to end this auction?')) return
-  try {
-    await api.post(`/auctions/${id}/end`)
-    fetchData()
-  } catch (e) { alert(e.response?.data?.message || 'Failed to end auction') }
-}
+// Refresh user data from server to get latest rating
+auth.fetchMe()
 
 onMounted(fetchData)
 </script>

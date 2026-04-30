@@ -248,6 +248,25 @@ const endAuction = async (req, res) => {
           type: 'auction_ended',
         },
       });
+
+      // Push real-time notifications via socket
+      const io = getIO();
+      if (io) {
+        io.to(`user:${auction.highestBuyerId}`).emit('new_notification', {
+          title: 'You won an auction!',
+          message: `Congratulations! You won "${auction.product.name}" at ₹${auction.bestPrice}. Check your email for seller contact details.`,
+          type: 'auction_won',
+          createdAt: new Date().toISOString(),
+        });
+        io.to(`user:${auction.sellerId}`).emit('new_notification', {
+          title: 'Your item has been sold!',
+          message: `Your auction for "${auction.product.name}" sold for ₹${auction.bestPrice} to ${auction.highestBuyer.name}. Check your email for buyer contact details.`,
+          type: 'auction_ended',
+          createdAt: new Date().toISOString(),
+        });
+        // Broadcast to auction room so UI updates
+        io.to(auction.id).emit('auction_ended', { auctionId: auction.id });
+      }
     } else {
       // No bids
       await sendAuctionNoBidsEmail(auction.seller.email, productDetails);
@@ -260,6 +279,18 @@ const endAuction = async (req, res) => {
           type: 'auction_ended',
         },
       });
+
+      // Push real-time notification via socket
+      const io = getIO();
+      if (io) {
+        io.to(`user:${auction.sellerId}`).emit('new_notification', {
+          title: 'Your auction ended with no bids',
+          message: `Your auction for "${auction.product.name}" ended without any bids.`,
+          type: 'auction_ended',
+          createdAt: new Date().toISOString(),
+        });
+        io.to(auction.id).emit('auction_ended', { auctionId: auction.id });
+      }
     }
 
     res.json({ message: 'Auction ended successfully.', auction: updatedAuction });
@@ -317,19 +348,11 @@ const withdrawBid = async (req, res) => {
       });
     }
 
-    // Flag the user who backed out (three-strike system)
+    // Flag the user who backed out
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
       data: { numberOfFlags: { increment: 1 } },
     });
-
-    // Auto-block if 3 strikes reached
-    if (updatedUser.numberOfFlags >= 3) {
-      await prisma.user.update({
-        where: { id: req.user.id },
-        data: { isBlocked: true },
-      });
-    }
 
     // Find the next highest valid bid
     const nextBid = auction.bids.find(
@@ -345,7 +368,7 @@ const withdrawBid = async (req, res) => {
         },
       });
 
-      // Notify the previous bidder they are now highest
+      // Notify the next bidder they are now highest
       await prisma.notification.create({
         data: {
           userId: nextBid.userId,
@@ -373,6 +396,25 @@ const withdrawBid = async (req, res) => {
         targetId: req.user.id,
       },
     });
+
+    // Notify admins if user has reached 3 flags
+    if (updatedUser.numberOfFlags >= 3) {
+      // Find admin users to notify
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        await prisma.notification.create({
+          data: {
+            userId: admin.id,
+            title: 'User reached 3 flags',
+            message: `User "${req.user.name || req.user.id}" has accumulated ${updatedUser.numberOfFlags} flags from bid withdrawals. Please review.`,
+            type: 'flagged',
+          },
+        });
+      }
+    }
 
     res.json({
       message: 'Bid withdrawn. You have been flagged for backing out.',

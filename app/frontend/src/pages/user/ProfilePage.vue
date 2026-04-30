@@ -20,8 +20,24 @@
         <!-- Stats Row -->
         <div class="profile-stats">
           <div class="pstat">
-            <div class="pstat-val">⭐ {{ profile.rating }}</div>
-            <div class="pstat-lbl">Rating ({{ profile.ratingCount }})</div>
+            <div class="pstat-val">
+              <template v-if="profile.ratingCount === 0">
+                <span class="new-user-badge-inline">🆕 New</span>
+              </template>
+              <template v-else>
+                <span class="trust-score-display">
+                  <span class="trust-stars">
+                    <span v-for="i in 5" :key="i" class="star-icon" :class="{ filled: i <= Math.round(profile.rating) }">★</span>
+                  </span>
+                  <span class="trust-number">{{ profile.rating }}</span>
+                </span>
+              </template>
+            </div>
+            <div class="pstat-lbl">
+              <template v-if="profile.ratingCount === 0">New User</template>
+              <template v-else-if="profile.ratingCount < 5">Trust Score ({{ profile.ratingCount }} reviews)</template>
+              <template v-else>Trust Score ({{ profile.ratingCount }})</template>
+            </div>
           </div>
           <div class="pstat">
             <div class="pstat-val">{{ profile._count?.products || 0 }}</div>
@@ -104,42 +120,47 @@
               <div v-if="!allCategories.length" class="text-muted" style="font-size:0.85rem">No categories available yet.</div>
             </div>
           </template>
+        </div>
+      </div>
 
-          <template v-else>
-            <h3 class="card-section-title">Actions</h3>
-            <div class="flex gap-sm mt-md">
-              <button class="btn btn-danger btn-sm" @click="showFlagModal = true">🚩 Flag User</button>
+      <!-- Ratings & Reviews Section -->
+      <div class="reviews-container card mb-lg">
+        <div class="reviews-header">
+          <h3 class="reviews-title">⭐ Ratings & Reviews ({{ ratings.length }})</h3>
+        </div>
+
+        <div class="reviews-content">
+          <div v-if="ratingsLoading" class="text-muted" style="font-size:0.85rem;padding:16px">Loading reviews...</div>
+          <div v-else-if="!ratings.length" class="empty-reviews">
+            <div class="empty-icon">⭐</div>
+            <p v-if="profile.ratingCount === 0" class="text-muted">No reviews yet — this is a new user.</p>
+            <p v-else class="text-muted">No reviews to display.</p>
+          </div>
+          <div v-else>
+            <div v-for="r in ratings" :key="r.id" class="review-item">
+              <div class="review-header">
+                <div class="review-author">
+                  <div class="review-avatar">{{ r.author?.name?.[0] || '?' }}</div>
+                  <div>
+                    <strong>{{ r.author?.name }}</strong>
+                    <span class="review-type-badge" :class="r.type === 'BUYER_TO_SELLER' ? 'buyer-type' : 'seller-type'">
+                      {{ r.type === 'BUYER_TO_SELLER' ? 'Buyer → Seller' : 'Seller → Buyer' }}
+                    </span>
+                  </div>
+                </div>
+                <span class="review-date">{{ new Date(r.createdAt).toLocaleDateString('en-IN', { year:'numeric', month:'short', day:'numeric' }) }}</span>
+              </div>
+              <div class="review-stars">
+                <span v-for="i in 5" :key="i" class="star-icon" :class="{ filled: i <= Math.round(r.overallScore) }">★</span>
+                <span class="review-score">{{ r.overallScore.toFixed(1) }}</span>
+              </div>
+              <div class="review-scores-detail">
+                <span>{{ r.type === 'BUYER_TO_SELLER' ? 'Product Quality' : 'Communication' }}: {{ r.score1 }}/5</span>
+                <span>{{ r.type === 'BUYER_TO_SELLER' ? 'Description Accuracy' : 'Reliability' }}: {{ r.score2 }}/5</span>
+              </div>
+              <p class="review-comment">"{{ r.comment }}"</p>
             </div>
-          </template>
-        </div>
-      </div>
-
-      <!-- Flag Modal -->
-      <div v-if="showFlagModal" class="modal-overlay" @click.self="showFlagModal = false">
-        <div class="modal card">
-          <h3 class="mb-md">Flag {{ profile.name }}</h3>
-          <div class="form-group"><label>Reason</label><textarea v-model="flagReason" rows="3" placeholder="Explain why..." required></textarea></div>
-          <div class="flex gap-sm" style="justify-content:flex-end">
-            <button class="btn btn-outline btn-sm" @click="showFlagModal = false">Cancel</button>
-            <button class="btn btn-danger btn-sm" @click="submitFlag">Submit Flag</button>
           </div>
-        </div>
-      </div>
-
-      <!-- Comments Section -->
-      <div class="card">
-        <h3 class="card-section-title">Comments ({{ comments.length }})</h3>
-        <div v-if="auth.isAuthenticated && !isOwnProfile" class="flex gap-sm mb-lg">
-          <input v-model="newComment" placeholder="Write a comment..." style="flex:1" />
-          <button class="btn btn-primary btn-sm" @click="submitComment">Post</button>
-        </div>
-        <div v-if="!comments.length" class="text-muted" style="font-size:0.85rem">No comments yet.</div>
-        <div v-for="c in comments" :key="c.id" class="comment-item">
-          <div class="flex-between">
-            <strong style="font-size:0.85rem">{{ c.author?.name }}</strong>
-            <span class="text-muted" style="font-size:0.75rem">{{ new Date(c.createdAt).toLocaleDateString() }}</span>
-          </div>
-          <p style="margin-top:4px;color:var(--text-secondary);font-size:0.85rem">{{ c.content }}</p>
         </div>
       </div>
     </template>
@@ -157,11 +178,9 @@ const route = useRoute()
 const auth = useAuthStore()
 const notifStore = useNotificationStore()
 const profile = ref(null)
-const comments = ref([])
+const ratings = ref([])
+const ratingsLoading = ref(true)
 const loading = ref(true)
-const showFlagModal = ref(false)
-const flagReason = ref('')
-const newComment = ref('')
 
 const allCategories = ref([])
 const catsLoading = ref(true)
@@ -192,14 +211,17 @@ const toggleSubscription = async (cat) => {
 
 onMounted(async () => {
   try {
-    const [u, c] = await Promise.all([
-      api.get(`/users/profile/${userId()}`),
-      api.get(`/users/${userId()}/comments`),
-    ])
-    profile.value = u.data.user
-    comments.value = c.data.comments
+    const { data } = await api.get(`/users/profile/${userId()}`)
+    profile.value = data.user
   } catch (e) { console.error(e) }
   loading.value = false
+
+  // Load ratings/reviews
+  try {
+    const { data } = await api.get(`/users/${userId()}/ratings`)
+    ratings.value = data.ratings
+  } catch (e) { console.error(e) }
+  ratingsLoading.value = false
 
   // Load categories and subscriptions for own profile
   if (auth.isAuthenticated && isOwnProfile.value) {
@@ -211,25 +233,11 @@ onMounted(async () => {
       allCategories.value = catsRes.data.categories || []
     } catch (e) { console.error(e) }
     catsLoading.value = false
+  } else {
+    catsLoading.value = false
   }
 })
 
-const submitFlag = async () => {
-  try {
-    await api.post(`/users/${profile.value.id}/flag`, { reason: flagReason.value })
-    alert('User flagged.')
-    showFlagModal.value = false
-  } catch (e) { alert(e.response?.data?.message || 'Failed') }
-}
-
-const submitComment = async () => {
-  if (!newComment.value.trim()) return
-  try {
-    const { data } = await api.post(`/users/${profile.value.id}/comments`, { content: newComment.value })
-    comments.value.unshift(data.comment)
-    newComment.value = ''
-  } catch (e) { alert(e.response?.data?.message || 'Failed') }
-}
 </script>
 
 <style scoped>
@@ -253,6 +261,39 @@ const submitComment = async () => {
 }
 .pstat-val { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
 .pstat-lbl { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Trust Score Display */
+.trust-score-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.trust-stars {
+  display: flex;
+  gap: 1px;
+}
+.star-icon {
+  color: var(--border);
+  font-size: 0.85rem;
+}
+.star-icon.filled {
+  color: #FFD700;
+}
+.trust-number {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #FFD700;
+}
+.new-user-badge-inline {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(255, 179, 0, 0.12);
+  color: var(--warning);
+}
 
 .card-section-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; }
 
@@ -304,7 +345,6 @@ const submitComment = async () => {
 .toggle-label { font-size: 0.75rem; font-weight: 500; color: var(--text-muted); min-width: 22px; }
 .cat-sub-toggle.active .toggle-label { color: var(--primary); }
 
-.comment-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   backdrop-filter: blur(4px); display: flex; align-items: center;
@@ -317,6 +357,112 @@ const submitComment = async () => {
   animation: spin 0.6s linear infinite; margin: 0 auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Reviews Section */
+.reviews-container {
+  padding: 0 !important;
+  overflow: hidden;
+}
+.reviews-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.reviews-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+.reviews-content {
+  padding: 20px 24px;
+}
+
+/* Reviews */
+.empty-reviews {
+  text-align: center;
+  padding: 32px 16px;
+}
+.empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
+.review-item {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.review-item:last-child {
+  border-bottom: none;
+}
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.review-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.review-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.review-type-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.buyer-type {
+  background: rgba(78, 205, 196, 0.12);
+  color: #4ECDC4;
+}
+.seller-type {
+  background: rgba(255, 179, 0, 0.12);
+  color: var(--warning);
+}
+.review-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.review-stars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.review-score {
+  margin-left: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #FFD700;
+}
+.review-scores-detail {
+  display: flex;
+  gap: 16px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.review-comment {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.5;
+}
 
 @media (max-width: 768px) {
   .profile-stats { grid-template-columns: repeat(3, 1fr); }

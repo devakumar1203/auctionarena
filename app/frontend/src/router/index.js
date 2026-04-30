@@ -36,6 +36,12 @@ const routes = [
     name: 'Profile',
     component: () => import('../pages/user/ProfilePage.vue'),
   },
+  {
+    path: '/auction/:auctionId/rate',
+    name: 'RateUser',
+    component: () => import('../pages/user/RateUserPage.vue'),
+    meta: { requiresAuth: true },
+  },
 
   // Admin routes
   {

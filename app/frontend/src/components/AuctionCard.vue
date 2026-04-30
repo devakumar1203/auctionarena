@@ -82,11 +82,13 @@ onUnmounted(() => clearInterval(timer))
   box-shadow: var(--shadow);
 }
 .card-image {
-  width: 100%; height: 180px; overflow: hidden;
+  width: 100%; aspect-ratio: 4 / 3; overflow: hidden;
   background: var(--bg-surface);
+  display: flex; align-items: center; justify-content: center;
 }
 .card-image img {
-  width: 100%; height: 100%; object-fit: cover;
+  width: 100%; height: 100%; object-fit: cover; object-position: center;
+  display: block;
   transition: transform 0.3s ease;
 }
 .auction-card:hover .card-image img { transform: scale(1.05); }

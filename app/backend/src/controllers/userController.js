@@ -1,5 +1,4 @@
 const prisma = require('../utils/prisma');
-const { recalculateTrustScore } = require('../utils/trustScore');
 
 // ────────────────────────────────────────────────
 // GET /api/users/profile/:id
@@ -81,64 +80,8 @@ const updateProfile = async (req, res) => {
 };
 
 // ────────────────────────────────────────────────
-// POST /api/users/:id/flag
-// ────────────────────────────────────────────────
-const flagUser = async (req, res) => {
-  try {
-    const { reason } = req.body;
-    const targetId = req.params.id;
+// NOTE: User-to-user flagging removed. Flags only come from bid withdrawals.
 
-    if (targetId === req.user.id) {
-      return res.status(400).json({ message: 'You cannot flag yourself.' });
-    }
-
-    const target = await prisma.user.findUnique({ where: { id: targetId } });
-    if (!target) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
-
-    // Create flag
-    await prisma.flag.create({
-      data: {
-        reason,
-        authorId: req.user.id,
-        targetId,
-      },
-    });
-
-    // Increment flag count
-    const updatedUser = await prisma.user.update({
-      where: { id: targetId },
-      data: { numberOfFlags: { increment: 1 } },
-    });
-
-    // Three-strike penalty: auto-block
-    if (updatedUser.numberOfFlags >= 3) {
-      await prisma.user.update({
-        where: { id: targetId },
-        data: { isBlocked: true },
-      });
-
-      // Notify admin
-      await prisma.notification.create({
-        data: {
-          userId: targetId,
-          title: 'Account Blocked',
-          message: 'Your account has been blocked due to receiving 3 flags. An admin will review your case.',
-          type: 'flagged',
-        },
-      });
-    }
-
-    res.json({
-      message: 'User flagged successfully.',
-      totalFlags: updatedUser.numberOfFlags,
-    });
-  } catch (error) {
-    console.error('Flag user error:', error);
-    res.status(500).json({ message: 'Internal server error.' });
-  }
-};
 
 // ────────────────────────────────────────────────
 // POST /api/users/:id/comments
@@ -160,9 +103,6 @@ const addComment = async (req, res) => {
       },
       include: { author: { select: { id: true, name: true } } },
     });
-
-    // Recalculate trust score since comments affect sentiment
-    await recalculateTrustScore(targetId);
 
     res.status(201).json({ message: 'Comment added.', comment });
   } catch (error) {
@@ -305,7 +245,6 @@ const unsubscribeFromCategory = async (req, res) => {
 module.exports = {
   getUserProfile,
   updateProfile,
-  flagUser,
   addComment,
   getComments,
   getUserRatings,
