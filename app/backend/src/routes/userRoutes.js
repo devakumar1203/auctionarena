@@ -4,9 +4,9 @@ const {
   getUserProfile,
   updateProfile,
   flagUser,
-  rateUser,
   addComment,
   getComments,
+  getUserRatings,
   getNotifications,
   markNotificationRead,
   getCategorySubscriptions,
@@ -45,22 +45,6 @@ router.post(
 );
 
 router.post(
-  '/:id/rate',
-  authenticate,
-  [
-    body('productQuality')
-      .isInt({ min: 1, max: 5 })
-      .withMessage('Product quality must be 1-5'),
-    body('descriptionAccuracy')
-      .isInt({ min: 1, max: 5 })
-      .withMessage('Description accuracy must be 1-5'),
-    body('auctionId').notEmpty().withMessage('Auction ID is required'),
-  ],
-  validate,
-  rateUser
-);
-
-router.post(
   '/:id/comments',
   authenticate,
   [body('content').trim().notEmpty().withMessage('Comment cannot be empty')],
@@ -70,5 +54,7 @@ router.post(
 
 router.get('/:id/comments', getComments);
 
-module.exports = router;
+// Ratings received by a user
+router.get('/:id/ratings', getUserRatings);
 
+module.exports = router;

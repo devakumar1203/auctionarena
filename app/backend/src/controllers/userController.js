@@ -1,6 +1,9 @@
 const prisma = require('../utils/prisma');
+const { recalculateTrustScore } = require('../utils/trustScore');
 
+// ────────────────────────────────────────────────
 // GET /api/users/profile/:id
+// ────────────────────────────────────────────────
 const getUserProfile = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -46,7 +49,9 @@ const getUserProfile = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
 // PUT /api/users/profile
+// ────────────────────────────────────────────────
 const updateProfile = async (req, res) => {
   try {
     const { name, phoneNumber, favoriteCategories } = req.body;
@@ -75,7 +80,9 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
 // POST /api/users/:id/flag
+// ────────────────────────────────────────────────
 const flagUser = async (req, res) => {
   try {
     const { reason } = req.body;
@@ -133,64 +140,9 @@ const flagUser = async (req, res) => {
   }
 };
 
-// POST /api/users/:id/rate
-const rateUser = async (req, res) => {
-  try {
-    const { productQuality, descriptionAccuracy, auctionId } = req.body;
-    const targetId = req.params.id;
-
-    if (targetId === req.user.id) {
-      return res.status(400).json({ message: 'You cannot rate yourself.' });
-    }
-
-    // Check if already rated for this auction
-    const existingRating = await prisma.rating.findFirst({
-      where: {
-        authorId: req.user.id,
-        targetId,
-        auctionId,
-      },
-    });
-
-    if (existingRating) {
-      return res.status(400).json({ message: 'You have already rated this seller for this auction.' });
-    }
-
-    const overallScore = (productQuality + descriptionAccuracy) / 2;
-
-    await prisma.rating.create({
-      data: {
-        productQuality,
-        descriptionAccuracy,
-        overallScore,
-        authorId: req.user.id,
-        targetId,
-        auctionId,
-      },
-    });
-
-    // Recalculate average rating
-    const target = await prisma.user.findUnique({ where: { id: targetId } });
-    const newRatingCount = target.ratingCount + 1;
-    const newRating =
-      (target.rating * target.ratingCount + overallScore) / newRatingCount;
-
-    await prisma.user.update({
-      where: { id: targetId },
-      data: {
-        rating: Math.round(newRating * 10) / 10,
-        ratingCount: newRatingCount,
-      },
-    });
-
-    res.json({ message: 'Rating submitted.', rating: newRating });
-  } catch (error) {
-    console.error('Rate user error:', error);
-    res.status(500).json({ message: 'Internal server error.' });
-  }
-};
-
+// ────────────────────────────────────────────────
 // POST /api/users/:id/comments
+// ────────────────────────────────────────────────
 const addComment = async (req, res) => {
   try {
     const { content } = req.body;
@@ -209,6 +161,9 @@ const addComment = async (req, res) => {
       include: { author: { select: { id: true, name: true } } },
     });
 
+    // Recalculate trust score since comments affect sentiment
+    await recalculateTrustScore(targetId);
+
     res.status(201).json({ message: 'Comment added.', comment });
   } catch (error) {
     console.error('Add comment error:', error);
@@ -216,7 +171,9 @@ const addComment = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
 // GET /api/users/:id/comments
+// ────────────────────────────────────────────────
 const getComments = async (req, res) => {
   try {
     const comments = await prisma.comment.findMany({
@@ -231,7 +188,28 @@ const getComments = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
+// GET /api/users/:id/ratings  — all ratings received
+// ────────────────────────────────────────────────
+const getUserRatings = async (req, res) => {
+  try {
+    const ratings = await prisma.rating.findMany({
+      where: { targetId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        author: { select: { id: true, name: true } },
+      },
+    });
+    res.json({ ratings });
+  } catch (error) {
+    console.error('Get user ratings error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// ────────────────────────────────────────────────
 // GET /api/users/notifications
+// ────────────────────────────────────────────────
 const getNotifications = async (req, res) => {
   try {
     const notifications = await prisma.notification.findMany({
@@ -246,7 +224,9 @@ const getNotifications = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
 // PUT /api/users/notifications/:id/read
+// ────────────────────────────────────────────────
 const markNotificationRead = async (req, res) => {
   try {
     await prisma.notification.update({
@@ -260,7 +240,9 @@ const markNotificationRead = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
 // GET /api/users/category-subscriptions
+// ────────────────────────────────────────────────
 const getCategorySubscriptions = async (req, res) => {
   try {
     const subscriptions = await prisma.categorySubscription.findMany({
@@ -274,7 +256,9 @@ const getCategorySubscriptions = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
 // POST /api/users/category-subscriptions
+// ────────────────────────────────────────────────
 const subscribeToCategory = async (req, res) => {
   try {
     const { category } = req.body;
@@ -299,7 +283,9 @@ const subscribeToCategory = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
 // DELETE /api/users/category-subscriptions/:category
+// ────────────────────────────────────────────────
 const unsubscribeFromCategory = async (req, res) => {
   try {
     const category = decodeURIComponent(req.params.category);
@@ -320,9 +306,9 @@ module.exports = {
   getUserProfile,
   updateProfile,
   flagUser,
-  rateUser,
   addComment,
   getComments,
+  getUserRatings,
   getNotifications,
   markNotificationRead,
   getCategorySubscriptions,

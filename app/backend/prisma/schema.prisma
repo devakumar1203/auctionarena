@@ -123,16 +123,25 @@ model Comment {
 }
 
 model Rating {
-  id                    String @id @default(uuid())
-  productQuality        Int    // 1-5
-  descriptionAccuracy   Int    // 1-5
-  overallScore          Float
-  authorId              String
-  author                User   @relation("RatingAuthor", fields: [authorId], references: [id])
-  targetId              String
-  target                User   @relation("RatingTarget", fields: [targetId], references: [id])
-  auctionId             String
-  createdAt             DateTime @default(now())
+  id           String     @id @default(uuid())
+  authorId     String
+  author       User       @relation("RatingAuthor", fields: [authorId], references: [id])
+  targetId     String
+  target       User       @relation("RatingTarget", fields: [targetId], references: [id])
+  auctionId    String
+  type         RatingType
+  score1       Int        // Buyer→Seller: Product Quality   | Seller→Buyer: Communication
+  score2       Int        // Buyer→Seller: Description Accuracy | Seller→Buyer: Reliability
+  overallScore Float
+  comment      String
+  createdAt    DateTime   @default(now())
+
+  @@unique([authorId, targetId, auctionId])
+}
+
+enum RatingType {
+  BUYER_TO_SELLER
+  SELLER_TO_BUYER
 }
 
 model Flag {

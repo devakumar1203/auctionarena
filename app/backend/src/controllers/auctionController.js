@@ -425,6 +425,165 @@ const getMyBids = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────
+// GET /api/auctions/:id/rating-status
+// Returns auction info + whether the user has already rated
+// ────────────────────────────────────────────────
+const getRatingStatus = async (req, res) => {
+  try {
+    const auction = await prisma.auctionRoom.findUnique({
+      where: { id: req.params.id },
+      include: {
+        product: true,
+        seller: { select: { id: true, name: true, rating: true, ratingCount: true } },
+        highestBuyer: { select: { id: true, name: true, rating: true, ratingCount: true } },
+      },
+    });
+
+    if (!auction) {
+      return res.status(404).json({ message: 'Auction not found.' });
+    }
+
+    if (auction.status !== 'COMPLETED') {
+      return res.status(400).json({ message: 'Auction has not ended yet.' });
+    }
+
+    const userId = req.user.id;
+    const isSeller = auction.sellerId === userId;
+    const isBuyer = auction.highestBuyerId === userId;
+
+    if (!isSeller && !isBuyer) {
+      return res.status(403).json({ message: 'You are not a participant in this auction.' });
+    }
+
+    // Determine who the user is rating
+    const targetId = isBuyer ? auction.sellerId : auction.highestBuyerId;
+    const ratingType = isBuyer ? 'BUYER_TO_SELLER' : 'SELLER_TO_BUYER';
+
+    if (!targetId) {
+      return res.status(400).json({ message: 'No buyer to rate (auction had no bids).' });
+    }
+
+    // Check if already rated
+    const existingRating = await prisma.rating.findFirst({
+      where: {
+        authorId: userId,
+        targetId,
+        auctionId: auction.id,
+      },
+    });
+
+    res.json({
+      auction: {
+        id: auction.id,
+        product: auction.product,
+        seller: auction.seller,
+        buyer: auction.highestBuyer,
+        bestPrice: auction.bestPrice,
+        status: auction.status,
+      },
+      ratingType,
+      targetUser: isBuyer ? auction.seller : auction.highestBuyer,
+      alreadyRated: !!existingRating,
+      existingRating,
+      role: isBuyer ? 'buyer' : 'seller',
+    });
+  } catch (error) {
+    console.error('Get rating status error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// ────────────────────────────────────────────────
+// POST /api/auctions/:id/rate
+// Submit a rating for the other party
+// ────────────────────────────────────────────────
+const { recalculateTrustScore } = require('../utils/trustScore');
+
+const submitAuctionRating = async (req, res) => {
+  try {
+    const { score1, score2, comment } = req.body;
+    const auctionId = req.params.id;
+    const userId = req.user.id;
+
+    // Validate scores
+    if (!score1 || !score2 || score1 < 1 || score1 > 5 || score2 < 1 || score2 > 5) {
+      return res.status(400).json({ message: 'Scores must be between 1 and 5.' });
+    }
+    if (!comment || comment.trim().length < 10) {
+      return res.status(400).json({ message: 'Comment must be at least 10 characters.' });
+    }
+
+    const auction = await prisma.auctionRoom.findUnique({
+      where: { id: auctionId },
+      include: {
+        product: true,
+        seller: { select: { id: true, name: true } },
+        highestBuyer: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!auction) {
+      return res.status(404).json({ message: 'Auction not found.' });
+    }
+    if (auction.status !== 'COMPLETED') {
+      return res.status(400).json({ message: 'Auction has not ended yet.' });
+    }
+
+    const isSeller = auction.sellerId === userId;
+    const isBuyer = auction.highestBuyerId === userId;
+
+    if (!isSeller && !isBuyer) {
+      return res.status(403).json({ message: 'You are not a participant in this auction.' });
+    }
+
+    const targetId = isBuyer ? auction.sellerId : auction.highestBuyerId;
+    const ratingType = isBuyer ? 'BUYER_TO_SELLER' : 'SELLER_TO_BUYER';
+
+    if (!targetId) {
+      return res.status(400).json({ message: 'No one to rate.' });
+    }
+
+    // Check duplicate
+    const existing = await prisma.rating.findFirst({
+      where: { authorId: userId, targetId, auctionId },
+    });
+    if (existing) {
+      return res.status(400).json({ message: 'You have already rated for this auction.' });
+    }
+
+    const overallScore = (score1 + score2) / 2;
+
+    await prisma.rating.create({
+      data: {
+        authorId: userId,
+        targetId,
+        auctionId,
+        type: ratingType,
+        score1: parseInt(score1),
+        score2: parseInt(score2),
+        overallScore,
+        comment: comment.trim(),
+      },
+    });
+
+    // Recalculate the target's trust score
+    const { trustScore, ratingCount } = await recalculateTrustScore(targetId);
+
+    res.json({
+      message: 'Rating submitted successfully!',
+      trustScore,
+      ratingCount,
+    });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ message: 'You have already rated for this auction.' });
+    }
+    console.error('Submit auction rating error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 module.exports = {
   createAuction,
   getAuctions,
@@ -434,4 +593,7 @@ module.exports = {
   withdrawBid,
   getMyAuctions,
   getMyBids,
+  getRatingStatus,
+  submitAuctionRating,
 };
+
