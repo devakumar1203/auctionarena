@@ -1,2 +1,2 @@
 # auctionarena
-software engineering project
+software engineering project for understanding the websockets
